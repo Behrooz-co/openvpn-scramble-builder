@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest # استفاده از آخرین نسخه برای اتصال آنی به سرورهای گیت‌هاب
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
@@ -19,13 +19,23 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          # نصب ابزارهای اصلی بدون نیاز به پکیج‌های حذف شده اوبونتو جدید
           sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
 
-      - name: Download & Extract OpenWRT 24.10.5 SDK
+      - name: Auto-Detect & Download OpenWRT 24.10 SDK
         run: |
-          wget https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz
-          tar -xJf openwrt-sdk-*.tar.xz
+          # پیدا کردن خودکار آخرین ساب‌ورژن معتبر از سری 24.10 برای x86_64
+          SDK_URL=$(wget -qO- https://downloads.openwrt.org/releases/24.10.0/targets/x86/64/ | grep -oE 'openwrt-sdk-[0-8_a-zA-Z.-]+x86-64[0-8_a-zA-Z.-]+.tar.xz' | head -n 1)
+          
+          # اگر نسخه فرعی خاصی پیدا نشد، از نسخه پایدار اصلی استفاده کند
+          if [ -z "$SDK_URL" ]; then
+            URL="https://downloads.openwrt.org/releases/24.10.0/targets/x86/64/openwrt-sdk-24.10.0-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz"
+          else
+            URL="https://downloads.openwrt.org/releases/24.10.0/targets/x86/64/$SDK_URL"
+          fi
+          
+          echo "Downloading SDK from: $URL"
+          wget "$URL" -O openwrt-sdk.tar.xz
+          tar -xJf openwrt-sdk.tar.xz
           mv openwrt-sdk-*-x86-64_* sdk
 
       - name: Inject openvpn-scramble Package
@@ -42,11 +52,10 @@ jobs:
         run: |
           cd sdk
           make defconfig
-          # کامپایل مستقیم پکیج
           make package/openvpn-scramble/compile V=s
 
       - name: Upload IPK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openvpn-scramble-OpenWrt-24.10.5-x86_64
+          name: openvpn-scramble-OpenWrt-24.10-x86_64
           path: sdk/bin/packages/x86_64/**/openvpn-scramble*.ipk
