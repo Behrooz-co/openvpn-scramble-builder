@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+# رفع هشدار گیت‌هاب با فورس کردن محیط به نود ۲۴
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,6 +24,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+          # رفع خطای احتمالی لایه پکیج ابونتو
+          sudo rm -rf /var/lib/apt/lists/*
 
       - name: Download OpenWRT 24.10.5 SDK (x86_64)
         run: |
@@ -27,30 +33,34 @@ jobs:
           tar -xJf openwrt-sdk-*.tar.xz
           mv openwrt-sdk-*-x86-64_* sdk
 
-      - name: Update and Install Feeds
+      - name: Update and Install Official Feeds
         run: |
           cd sdk
-          # اضافه کردن فیدهای رسمی برای تامین پیش‌نیازهای لایبرری‌ها
+          # تنظیم آدرس فیدها و آپدیت کردن گام‌به‌گام برای جلوگیری از Exit code 100
+          sed -i 's/src-git base.*/src-git base https:\/\/github.com\/openwrt\/openwrt.git;openwrt-24.10/' feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # نصب وابستگی‌های اجباری برای لایبرری‌های شبکه و ابزارهای رمزنگاری
+          ./scripts/feeds install openvpn
 
       - name: Add openvpn-scramble Package
         run: |
-          # ساخت پوشه و کپی کردن سورس با بررسی وجود فایل‌ها
+          # ایجاد دایرکتوری در بخش کستوم پکیج‌ها
           mkdir -p sdk/package/openvpn-scramble
           if [ -d "openvpn-scramble" ]; then
             cp -r openvpn-scramble/* sdk/package/openvpn-scramble/
           else
-            # اگر پوشه مستقیما در ریشه ریپازیتوری شماست اما نام دیگری دارد یا فایل‌ها پخش هستند:
+            # اگر فایل‌ها مستقیماً در ریشه ریپازیتوری شما ریخته شده‌اند
             cp -r * sdk/package/openvpn-scramble/ 2>/dev/null || true
           fi
 
       - name: Configure and Compile Package
         run: |
           cd sdk
+          # ایجاد خودکار فایل .config بر اساس سیستم هدف J1900
           make defconfig
-          # ابتدا پکیج لایبرری‌های شبکه متصل به اوپن‌وی‌پی‌ان را آماده می‌کند تا خطای Missing Dependency ندهد
-          make package/openvpn-scramble/compile V=s
+          # انتخاب و کامپایل ابزار به همراه جزییات کامل لاگ
+          make package/openvpn-scramble/compile V=s -j$(nproc)
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -59,3 +69,4 @@ jobs:
           path: |
             sdk/bin/packages/x86_64/base/openvpn-scramble*.ipk
             sdk/bin/packages/x86_64/custom/openvpn-scramble*.ipk
+            sdk/bin/packages/x86_64/packages/openvpn-scramble*.ipk
