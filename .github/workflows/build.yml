@@ -1,11 +1,14 @@
 name: Build OpenWRT IPK for J1900 (x86_64)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # برای ظاهر شدن دکمه اجرای دستی در تب Actions
+  push:
+    branches:
+      - main       # برای اجرا شدن خودکار به محض کامیت روی برانچ اصلی
 
 jobs:
   build:
-    runs-on: ubuntu-20.04 # استفاده از نسخه ۲۰ برای سازگاری کامل با نیازمندی‌های لینوکس SDK
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout Code
@@ -16,7 +19,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential gawk eggconvert gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
+          sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
 
       - name: Download & Extract OpenWRT 24.10.5 SDK
         run: |
@@ -26,23 +29,18 @@ jobs:
 
       - name: Inject openvpn-scramble Package
         run: |
-          # ساخت پوشه پکیج در سیستم کامپایلر
           mkdir -p sdk/package/openvpn-scramble
-          # کپی کردن محتویات پروژه شما به پوشه پکیج
           if [ -d "openvpn-scramble" ]; then
             cp -r openvpn-scramble/* sdk/package/openvpn-scramble/
           else
             cp -r * sdk/package/openvpn-scramble/ 2>/dev/null || true
           fi
-          # حذف پوشه اضافی احتمالی برای جلوگیری از لوپ کانفیگ
           rm -rf sdk/package/openvpn-scramble/sdk
 
       - name: Compile Package
         run: |
           cd sdk
-          # ایجاد فایل کانفیگ پایه
           make defconfig
-          # کامپایل مستقیم و سریع پکیج شما
           make package/openvpn-scramble/compile V=s
 
       - name: Upload IPK Artifact
