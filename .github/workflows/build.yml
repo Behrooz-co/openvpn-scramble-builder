@@ -2,69 +2,51 @@ name: Build OpenWRT IPK for J1900 (x86_64)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
-    runs-on: ubuntu-24.04 # استفاده از نسخه پایدار و جدیدتر اوبونتو برای هماهنگی با نود ۲۴
+    runs-on: ubuntu-20.04 # استفاده از نسخه ۲۰ برای سازگاری کامل با نیازمندی‌های لینوکس SDK
 
     steps:
-      - name: 1. Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Install Ubuntu Dependencies
+      - name: Install System Dependencies
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+          sudo apt-get install -y build-essential gawk eggconvert gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
 
-      - name: 3. Download OpenWRT 24.10.5 SDK
+      - name: Download & Extract OpenWRT 24.10.5 SDK
         run: |
           wget https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz
           tar -xJf openwrt-sdk-*.tar.xz
           mv openwrt-sdk-*-x86-64_* sdk
 
-      - name: 4. Configure OpenWRT Feeds
+      - name: Inject openvpn-scramble Package
         run: |
-          cd sdk
-          # اصلاح مستقیم لینک فیدهای نسخه 24.10
-          echo "src-git base https://github.com/openwrt/openwrt.git;openwrt-24.10" > feeds.conf.default
-          echo "src-git packages https://github.com/openwrt/packages.git;openwrt-24.10" >> feeds.conf.default
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-          ./scripts/feeds install openvpn
-
-      - name: 5. Inject openvpn-scramble Source
-        run: |
+          # ساخت پوشه پکیج در سیستم کامپایلر
           mkdir -p sdk/package/openvpn-scramble
-          # بررسی هوشمند دایرکتوری برای جلوگیری از خطای کپی
+          # کپی کردن محتویات پروژه شما به پوشه پکیج
           if [ -d "openvpn-scramble" ]; then
             cp -r openvpn-scramble/* sdk/package/openvpn-scramble/
-          elif [ -f "Makefile" ]; then
-            cp -r * sdk/package/openvpn-scramble/ 2>/dev/null || true
           else
-            echo "Warning: No source files found in root!"
+            cp -r * sdk/package/openvpn-scramble/ 2>/dev/null || true
           fi
+          # حذف پوشه اضافی احتمالی برای جلوگیری از لوپ کانفیگ
+          rm -rf sdk/package/openvpn-scramble/sdk
 
-      - name: 6. Compile Package
+      - name: Compile Package
         run: |
           cd sdk
+          # ایجاد فایل کانفیگ پایه
           make defconfig
-          # کامپایل با جزییات کامل
+          # کامپایل مستقیم و سریع پکیج شما
           make package/openvpn-scramble/compile V=s
 
-      - name: 7. Upload IPK Artifact
+      - name: Upload IPK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: openvpn-scramble-OpenWrt-24.10.5-x86_64
-          path: |
-            sdk/bin/packages/x86_64/base/openvpn-scramble*.ipk
-            sdk/bin/packages/x86_64/custom/openvpn-scramble*.ipk
-            sdk/bin/packages/x86_64/packages/openvpn-scramble*.ipk
-          if-no-files-found: warn
+          path: sdk/bin/packages/x86_64/**/openvpn-scramble*.ipk
