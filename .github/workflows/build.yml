@@ -1,14 +1,14 @@
 name: Build OpenWRT IPK for J1900 (x86_64)
 
 on:
-  workflow_dispatch: # برای ظاهر شدن دکمه اجرای دستی در تب Actions
+  workflow_dispatch:
   push:
     branches:
-      - main       # برای اجرا شدن خودکار به محض کامیت روی برانچ اصلی
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest # استفاده از آخرین نسخه برای اتصال آنی به سرورهای گیت‌هاب
 
     steps:
       - name: Checkout Code
@@ -19,6 +19,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
+          # نصب ابزارهای اصلی بدون نیاز به پکیج‌های حذف شده اوبونتو جدید
           sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
 
       - name: Download & Extract OpenWRT 24.10.5 SDK
@@ -41,6 +42,7 @@ jobs:
         run: |
           cd sdk
           make defconfig
+          # کامپایل مستقیم پکیج
           make package/openvpn-scramble/compile V=s
 
       - name: Upload IPK Artifact
