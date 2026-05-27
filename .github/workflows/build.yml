@@ -19,28 +19,28 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget time
+          # اضافه شدن zstd برای استخراج فایل‌های جدید OpenWrt
+          sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget curl zstd time
 
-      - name: Auto-Detect & Download OpenWRT 24.10.5 SDK
+      - name: Download Official OpenWrt 24.10.5 SDK
         run: |
           BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/"
-          echo "Searching for exact SDK filename in $BASE_URL ..."
+          echo "Fetching SDK info from $BASE_URL"
           
-          # پیدا کردن نام دقیق فایل از لیست هش‌های سرور برای جلوگیری از ارور ۴۰۴
-          SDK_FILE=$(wget -qO- "${BASE_URL}sha256sums" | grep -m 1 "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//')
+          # خواندن دقیق نام فایل (با فرمت tar.zst) مستقیماً از فایل هش OpenWrt
+          SDK_FILE=$(curl -s "${BASE_URL}sha256sums" | grep "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//' | head -n 1)
           
-          # مسیر جایگزین در صورت پیدا نشدن فایل هش
           if [ -z "$SDK_FILE" ]; then
-             echo "Fallback to HTML scraping..."
-             SDK_FILE=$(wget -qO- "$BASE_URL" | grep -oE 'openwrt-sdk-[^"]+\.tar\.xz' | head -n 1)
+            echo "Error: Could not locate SDK file on OpenWrt server."
+            exit 1
           fi
           
-          echo "Downloading: $SDK_FILE"
-          wget "${BASE_URL}${SDK_FILE}" -O sdk.tar.xz
+          echo "Exact SDK file found: $SDK_FILE"
+          wget -q --show-progress "${BASE_URL}${SDK_FILE}" -O sdk-archive.tar.zst
           
-          # استخراج و تغییر نام پوشه
-          tar -xJf sdk.tar.xz
-          rm sdk.tar.xz
+          # استخراج صحیح آرشیو zst
+          tar -xf sdk-archive.tar.zst
+          rm sdk-archive.tar.zst
           mv openwrt-sdk-* sdk
 
       - name: Inject openvpn-scramble Package
@@ -51,7 +51,6 @@ jobs:
           else
             cp -r * sdk/package/openvpn-scramble/ 2>/dev/null || true
           fi
-          # پاک کردن پوشه‌های اضافی که باعث لوپ می‌شوند
           rm -rf sdk/package/openvpn-scramble/sdk
 
       - name: Compile Package
@@ -63,5 +62,5 @@ jobs:
       - name: Upload IPK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openvpn-scramble-OpenWrt-24.10.5-x86_64
+          name: openvpn-scramble-OpenWrt-24.10.5-r29087-x86_64
           path: sdk/bin/packages/x86_64/**/openvpn-scramble*.ipk
