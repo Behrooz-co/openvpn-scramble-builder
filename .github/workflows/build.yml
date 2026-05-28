@@ -18,27 +18,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget curl zstd
           
-      - name: Download & Setup SDK
+      - name: Download & Setup SDK (Retry-Logic)
         run: |
-          # دانلود SDK نسخه 24.10.5
-          wget -q --show-progress https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz
+          # آدرس جایگزین برای دانلود پایدارتر
+          SDK_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz"
           
-          # استخراج فایل
-          tar -xf openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz
+          # تلاش برای دانلود با قابلیت از سرگیری (Resume)
+          wget -c --tries=5 --timeout=30 --show-progress "$SDK_URL" -O sdk.tar.xz
           
-          # بررسی اینکه چه پوشه‌ای ایجاد شده است
-          ls -d openwrt-sdk-* > folder_name.txt
-          FOLDER=$(cat folder_name.txt)
-          echo "Found folder: $FOLDER"
-          
-          # تغییر نام به sdk به صورت مستقیم
-          mv "$FOLDER" sdk
+          tar -xf sdk.tar.xz
+          # پیدا کردن خودکار نام پوشه استخراج شده و تغییر نام
+          mv openwrt-sdk-* sdk
           
       - name: Download Patch and Prepare Package
         run: |
           wget -q https://raw.githubusercontent.com/egc112/OpenWRT-egc-add-on/main/openvpn-scramble/feeds/618/996-tunnelblick-openvpn_xorpatch-e.patch -O xor_patch.patch
           
-          # کپی پچ به داخل SDK قبل از شروع بیلد
           mkdir -p sdk/package/feeds/packages/openvpn-openssl/patches/
           cp xor_patch.patch sdk/package/feeds/packages/openvpn-openssl/patches/
           
