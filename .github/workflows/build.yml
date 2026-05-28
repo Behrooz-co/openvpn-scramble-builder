@@ -21,32 +21,23 @@ jobs:
       - name: Download & Setup SDK
         run: |
           BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/"
-          # پیدا کردن فایل SDK
           SDK_FILENAME=$(curl -s "${BASE_URL}sha256sums" | grep "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//' | head -n 1)
-          
-          echo "Downloading: ${SDK_FILENAME}"
           wget -q --show-progress "${BASE_URL}${SDK_FILENAME}"
-          
-          echo "Extracting SDK..."
           tar -xf "${SDK_FILENAME}"
-          
-          # پیدا کردن خودکار نام پوشه استخراج شده و تغییر نام آن به sdk
-          EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "openwrt-sdk-*" | head -n 1)
-          if [ -d "$EXTRACTED_DIR" ]; then
-            mv "$EXTRACTED_DIR" sdk
-          else
-            echo "Error: SDK directory not found after extraction!"
-            exit 1
-          fi
+          mv openwrt-sdk-* sdk
 
-      - name: Prepare Package and Patch
+      - name: Download Patch and Prepare Package
         run: |
+          # دانلود مستقیم پچ از لینکی که دادید
+          wget -q https://raw.githubusercontent.com/egc112/OpenWRT-egc-add-on/main/openvpn-scramble/feeds/618/996-tunnelblick-openvpn_xorpatch-e.patch -O xor_patch.patch
+          
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install openvpn-openssl
           
+          # کپی پچ به مسیر فیدها
           mkdir -p package/feeds/packages/openvpn-openssl/patches/
-          cp ../996-tunnelblick-openvpn_xorpatch-e.patch package/feeds/packages/openvpn-openssl/patches/
+          cp ../xor_patch.patch package/feeds/packages/openvpn-openssl/patches/
 
       - name: Compile Package
         run: |
