@@ -13,19 +13,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Prepare System (Disable Needrestart)
+      - name: Prepare System
         run: |
-          # غیرفعال کردن کاملِ needrestart برای جلوگیری از ارور 8
-          echo '$nrconf{restart} = "a";' | sudo tee -a /etc/needrestart/conf.d/restart.conf
-          echo '$nrconf{kernelhints} = -1;' | sudo tee -a /etc/needrestart/conf.d/kernel.conf
-          
           sudo apt-get update
           sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget curl zstd
-
-      - name: Setup OpenWrt SDK
+          
+      - name: Download & Setup SDK
         run: |
-          wget -q https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-14.2.0_musl.Linux-x86_64.tar.xz
-          tar -xf openwrt-sdk-*.tar.xz
+          # پیدا کردن لینک دانلودِ آخرین نسخه SDK موجود در سرور OpenWrt
+          BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/"
+          SDK_FILENAME=$(curl -s "${BASE_URL}sha256sums" | grep "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//' | head -n 1)
+          
+          echo "Downloading: ${SDK_FILENAME}"
+          wget -q --show-progress "${BASE_URL}${SDK_FILENAME}"
+          
+          tar -xf "${SDK_FILENAME}"
           mv openwrt-sdk-* sdk
 
       - name: Prepare Package and Patch
@@ -34,14 +36,12 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install openvpn-openssl
           
-          # کپی پچ به مسیر درست
           mkdir -p package/feeds/packages/openvpn-openssl/patches/
           cp ../996-tunnelblick-openvpn_xorpatch-e.patch package/feeds/packages/openvpn-openssl/patches/
 
       - name: Compile Package
         run: |
           cd sdk
-          # بیلد با استفاده از V=s برای لاگ‌گیری دقیق
           make package/feeds/packages/openvpn-openssl/compile V=s
 
       - name: Upload Artifact
