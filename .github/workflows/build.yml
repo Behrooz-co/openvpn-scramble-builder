@@ -20,15 +20,24 @@ jobs:
           
       - name: Download & Setup SDK
         run: |
-          # پیدا کردن لینک دانلودِ آخرین نسخه SDK موجود در سرور OpenWrt
           BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/"
+          # پیدا کردن فایل SDK
           SDK_FILENAME=$(curl -s "${BASE_URL}sha256sums" | grep "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//' | head -n 1)
           
           echo "Downloading: ${SDK_FILENAME}"
           wget -q --show-progress "${BASE_URL}${SDK_FILENAME}"
           
+          echo "Extracting SDK..."
           tar -xf "${SDK_FILENAME}"
-          mv openwrt-sdk-* sdk
+          
+          # پیدا کردن خودکار نام پوشه استخراج شده و تغییر نام آن به sdk
+          EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "openwrt-sdk-*" | head -n 1)
+          if [ -d "$EXTRACTED_DIR" ]; then
+            mv "$EXTRACTED_DIR" sdk
+          else
+            echo "Error: SDK directory not found after extraction!"
+            exit 1
+          fi
 
       - name: Prepare Package and Patch
         run: |
