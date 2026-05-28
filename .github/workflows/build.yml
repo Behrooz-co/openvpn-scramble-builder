@@ -19,8 +19,6 @@ jobs:
           sudo apt-get install -y build-essential gawk gettext libncurses5-dev libssl-dev python3 rsync unzip zlib1g-dev file wget curl zstd
           
           BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/"
-          
-          # Auto-detect the exact filename to prevent 404/Exit Code 8
           SDK_FILE=$(curl -s "${BASE_URL}sha256sums" | grep "openwrt-sdk" | awk '{print $2}' | sed 's/^\*//' | head -n 1)
           
           if [ -z "$SDK_FILE" ]; then
@@ -31,21 +29,36 @@ jobs:
           echo "Downloading SDK: ${SDK_FILE}"
           wget -q --show-progress "${BASE_URL}${SDK_FILE}" -O sdk-archive.tar.zst
           
-          # Extract the zst archive
           tar -xf sdk-archive.tar.zst
           mv openwrt-sdk-* sdk
 
-      - name: 3. Inject Package
+      - name: 3. Inject Package (Auto-Discover)
         run: |
+          echo "=== Locating Package Makefile ==="
+          
+          # جستجوی هوشمند برای پیدا کردن پوشه اصلی پکیج
+          MAKEFILE_DIR=$(find . -maxdepth 3 -type f -name "Makefile" -not -path "./sdk/*" -exec dirname {} \; | head -n 1)
+          
+          if [ -z "$MAKEFILE_DIR" ]; then
+            echo "Error: Could not find any Makefile in your repository!"
+            echo "Please ensure the openvpn-scramble source code (and its Makefile) is in this repo."
+            exit 1
+          fi
+          
+          echo "Found package directory: $MAKEFILE_DIR"
           mkdir -p sdk/package/openvpn-scramble
           
-          # Copy all repository contents into the package directory
-          cp -r ./* sdk/package/openvpn-scramble/ || true
+          # کپی امن فایل‌ها جلوگیری از لوپ شدن دایرکتوری sdk
+          if [ "$MAKEFILE_DIR" = "." ]; then
+            find . -maxdepth 1 -not -name "sdk" -not -name "." -not -name ".git" -exec cp -r {} sdk/package/openvpn-scramble/ \;
+          else
+            cp -a "$MAKEFILE_DIR"/* sdk/package/openvpn-scramble/
+          fi
           
-          # Prevent infinite loop by removing the self-copied sdk folder
-          rm -rf sdk/package/openvpn-scramble/sdk
+          echo "=== Verifying Injected Files ==="
+          ls -la sdk/package/openvpn-scramble/
           
-          # Update feeds to register the new package
+          echo "=== Updating Feeds ==="
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
